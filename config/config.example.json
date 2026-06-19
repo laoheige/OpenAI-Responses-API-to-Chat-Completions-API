@@ -1,0 +1,17 @@
+{
+  "port": 57321,
+  "host": "127.0.0.1",
+  "backend_url": "https://api.deepseek.com/v1",
+  "backend_api_key": "sk-your-api-key-here",
+  "model_map": {
+    "gpt-5.4-mini": "deepseek-v4-flash"
+  },
+  "models": [
+    { "id": "deepseek-v4-flash", "owned_by": "deepseek" }
+  ],
+  "timeouts": {
+    "client_request": 30000,
+    "backend_request": 60000,
+    "backend_idle": 300000
+  }
+}
