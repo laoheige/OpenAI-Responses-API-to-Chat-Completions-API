@@ -1,4 +1,4 @@
-# Codex Proxy
+﻿# OpenAI Responses API to Chat Completions API
 
 OpenAI Responses API → Chat Completions API 转接代理，让 Codex CLI 连接任意 Chat Completions 后端。
 
@@ -43,13 +43,7 @@ cp config/config.example.json config/config.json
 }
 ```
 
-### 3. 启动代理
-
-```bash
-node proxy.js
-```
-
-### 4. 配置 Codex
+### 3. 配置 Codex
 
 编辑 `~/.codex/config.toml`：
 
@@ -70,6 +64,12 @@ setx OPENAI_API_KEY "sk-any-value"
 
 # Linux/macOS
 export OPENAI_API_KEY="sk-any-value"
+```
+
+### 4. 启动代理
+
+```bash
+node proxy.js
 ```
 
 ### 5. 启动 Codex
@@ -123,3 +123,4 @@ Codex CLI  →  Proxy (Responses API)  →  Backend (Chat Completions API)
 ## License
 
 ISC
+
