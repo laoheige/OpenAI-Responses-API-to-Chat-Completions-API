@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Codex Responses API → Chat Completions API 转接代理
  *
  * 将 codex CLI 的 Responses API 请求转换为标准 Chat Completions 格式，
@@ -821,7 +821,7 @@ function convertSSEStream(backendRes, clientRes) {
         outputItems.push({
           type: 'reasoning',
           id: reasoningId,
-          summary: [{ type: 'summary_text', text: reasoningState.fullText }],
+          summary: [{ type: 'summary_text', text: '' }],
           encrypted_content: null
         });
       } else if (it.kind === 'message') {
@@ -830,7 +830,7 @@ function convertSSEStream(backendRes, clientRes) {
           id: msgId,
           status: 'completed',
           role: 'assistant',
-          content: [{ type: 'output_text', text: messageState.fullText, annotations: [] }]
+          content: [{ type: 'output_text', text: '', annotations: [] }]
         });
       } else if (it.kind === 'tool') {
         outputItems.push({
