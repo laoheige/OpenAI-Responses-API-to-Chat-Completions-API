@@ -1,12 +1,12 @@
-# OpenAI Responses API to Chat Completions API
+# OpenAI Responses API to Chat Completions API# OpenAI 响应 API 到聊天完成 API
 
-OpenAI Responses API → Chat Completions API 转接代理，让 Codex CLI 连接任意 Chat Completions 后端。
+OpenAI Responses API → Chat Completions API 转接代理，让 Codex CLI 连接任意 Chat Completions 后端。OpenAI Responses API → Chat Completions API proxy that enables Codex CLI to connect to any Chat Completions backend.
 
 ## 功能
 
-- 将 Codex CLI 的 Responses API 请求转换为标准 Chat Completions 格式
+- 将 Codex CLI 的 Responses API 请求转换为标准 Chat Completions 格式- Convert Codex CLI's Responses API requests into standard Chat Completions format
 - 支持 SSE 流式响应转换
-- 支持 reasoning_content（DeepSeek、GLM 等推理模型）
+- 支持 reasoning_content（DeepSeek、GLM 等推理模型）- Supports reasoning_content (inference models such as DeepSeek, GLM, etc.)
 - 支持 tool_calls 合并与格式修复
 - 支持 backend_api_key 认证
 
@@ -26,13 +26,13 @@ npm install
 cp config/config.example.json config/config.json
 ```
 
-编辑 `config/config.json`：
+编辑 `config/config.json   配置/ json`：
 
-```json
+```json   ' ' ' json
 {
   "port": 57321,
   "host": "127.0.0.1",
-  "model_map": {
+  "model_map": {   "model_map": {
     "gpt-5.4-mini": "deepseek-v4-flash"
   },
   "models": [
@@ -53,46 +53,51 @@ cp config/config.example.json config/config.json
 
 ### 3. 配置 Codex
 
-编辑 `~/.codex/config.toml`：
+编辑 `~/.codex/config.toml`：Edit `~/.codex/config.toml`:
 
-```toml
+```toml   ’”toml
 openai_base_url = "http://127.0.0.1:57321/v1"
-model_provider = "openai"
-model = "gpt-5.4-mini"
+model_provider = "openai_http"
+[model_providers.openai_http]
+name = "openai http only"
+wire_api = "responses"
+supports_websockets = false
+requires_openai_auth = false
+model = "gpt-5.4-mini"   model = "gpt-5.4-mini"
 
 approval_policy = "never"
-sandbox_mode = "danger-full-access"
+sandbox_mode = "danger-full-access"sandbox_mode"
 ```
 
 设置环境变量：
 
-```bash
-# Windows
-setx OPENAI_API_KEY "sk-any-value"
+```bash   ”“bash
+# Windows   #窗口
+setx OPENAI_API_KEY "sk-any-value"setx OPENAI_API_KEY "sk-any-value"
 
-# Linux/macOS
-export OPENAI_API_KEY="sk-any-value"
+# Linux/macOS   # Linux /操作系统
+export OPENAI_API_KEY="sk-any-value"export OPENAI_API_KEY="sk-any-value"
 ```
 
 ### 4. 启动代理
 
-```bash
-node proxy.js
+```bash   ”“bash
+node proxy.js   节点proxy.js
 ```
 
-### 5. 启动 Codex
+#### OpenAI 响应 API 到聊天完成 API 5. 启动 Codex
 
-```bash
-codex
+```bash   ”“bash
+codex   食典委
 ```
 
 ## 配置说明
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `port` | number | 监听端口，默认 57321 |
-| `host` | string | 监听地址，默认 127.0.0.1 |
-| `model_map` | object | 模型名映射，将 Codex 模型名映射到后端模型名 |
+| `port` | number | 监听端口，默认 57321 || `port` | number | Listening port, default 57321 |
+| `host` | string | 监听地址，默认 127.0.0.1 || `host` | string | Listening address, default 127.0.0.1 |
+| `model_map` | object | 模型名映射，将 Codex 模型名映射到后端模型名 || `model_map` | object | Model name mapping, which maps Codex model names to backend model names |
 | `models` | array | `/v1/models` 接口返回的模型列表 |
 | `suppliers` | array | 供应商列表（见下方） |
 
