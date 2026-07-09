@@ -1,4 +1,4 @@
-﻿# OpenAI Responses API to Chat Completions API
+# OpenAI Responses API to Chat Completions API
 
 OpenAI Responses API → Chat Completions API 转接代理，让 Codex CLI 连接任意 Chat Completions 后端。
 
@@ -32,13 +32,21 @@ cp config/config.example.json config/config.json
 {
   "port": 57321,
   "host": "127.0.0.1",
-  "backend_url": "https://api.deepseek.com/v1",
-  "backend_api_key": "sk-your-api-key-here",
   "model_map": {
     "gpt-5.4-mini": "deepseek-v4-flash"
   },
   "models": [
     { "id": "deepseek-v4-flash", "owned_by": "deepseek" }
+  ],
+  "suppliers": [
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "backend_url": "https://api.deepseek.com/v1",
+      "backend_api_key": "sk-your-api-key-here",
+      "enabled": true,
+      "priority": 1
+    }
   ]
 }
 ```
@@ -84,10 +92,20 @@ codex
 |------|------|------|
 | `port` | number | 监听端口，默认 57321 |
 | `host` | string | 监听地址，默认 127.0.0.1 |
-| `backend_url` | string | 后端 Chat Completions API 地址 |
-| `backend_api_key` | string | 后端 API Key（可选） |
 | `model_map` | object | 模型名映射，将 Codex 模型名映射到后端模型名 |
 | `models` | array | `/v1/models` 接口返回的模型列表 |
+| `suppliers` | array | 供应商列表（见下方） |
+
+### 供应商配置
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 供应商唯一标识 |
+| `name` | string | 供应商名称 |
+| `backend_url` | string | 后端 Chat Completions API 地址 |
+| `backend_api_key` | string | 后端 API Key（可选） |
+| `enabled` | boolean | 是否启用，默认 true |
+| `priority` | number | 优先级，数字越小越优先 |
 
 ## 工作原理
 

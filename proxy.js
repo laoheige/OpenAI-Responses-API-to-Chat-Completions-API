@@ -39,7 +39,6 @@ function loadConfig() {
     return {
       port: 57321,
       host: '127.0.0.1',
-      backend_url: 'https://api.deepseek.com/v1',
       model_map: {},
       models: [{ id: 'deepseek-v4-flash', owned_by: 'deepseek' }],
       context_max_tokens: 120000,
@@ -47,7 +46,8 @@ function loadConfig() {
         client_request: 30000,
         backend_request: 60000,
         backend_idle: 300000,
-      }
+      },
+      suppliers: []
     };
   }
 }
@@ -58,8 +58,6 @@ const config = loadConfig();
 const CFG = {
   port:         config.port         ?? 57321,
   host:         config.host         ?? '127.0.0.1',
-  backend_url:  config.backend_url  ?? 'https://api.deepseek.com/v1',
-  backend_api_key: config.backend_api_key || '',
   model_map:    config.model_map    ?? {},
   default_model: config.default_model
     || (Array.isArray(config.models) && config.models[0]?.id)
@@ -73,7 +71,105 @@ const CFG = {
   models: Array.isArray(config.models) && config.models.length > 0
     ? config.models
     : [{ id: 'deepseek-v4-flash', owned_by: 'deepseek' }],
+  suppliers: Array.isArray(config.suppliers) ? config.suppliers : [],
 };
+
+// ─── 供应商管理 ──────────────────────────────────────────────────────
+const suppliers = [...CFG.suppliers];
+
+/** 获取所有供应商 */
+function getSuppliers() {
+  return suppliers;
+}
+
+/** 根据 ID 获取供应商 */
+function getSupplier(id) {
+  return suppliers.find(s => s.id === id);
+}
+
+/** 获取已启用的供应商（按优先级排序） */
+function getEnabledSuppliers() {
+  return suppliers
+    .filter(s => s.enabled)
+    .sort((a, b) => (a.priority || 100) - (b.priority || 100));
+}
+
+/** 添加供应商 */
+function addSupplier(supplier) {
+  if (!supplier.id || !supplier.name || !supplier.backend_url) {
+    throw new Error('供应商必须包含 id, name, backend_url');
+  }
+  if (suppliers.find(s => s.id === supplier.id)) {
+    throw new Error(`供应商 ID "${supplier.id}" 已存在`);
+  }
+  const newSupplier = {
+    id: supplier.id,
+    name: supplier.name,
+    backend_url: supplier.backend_url,
+    backend_api_key: supplier.backend_api_key || '',
+    enabled: supplier.enabled !== false,
+    priority: supplier.priority || 100,
+  };
+  suppliers.push(newSupplier);
+  saveSuppliers();
+  return newSupplier;
+}
+
+/** 更新供应商 */
+function updateSupplier(id, updates) {
+  const idx = suppliers.findIndex(s => s.id === id);
+  if (idx === -1) throw new Error(`供应商 "${id}" 不存在`);
+  const allowed = ['name', 'backend_url', 'backend_api_key', 'enabled', 'priority'];
+  for (const key of allowed) {
+    if (updates[key] !== undefined) {
+      suppliers[idx][key] = updates[key];
+    }
+  }
+  saveSuppliers();
+  return suppliers[idx];
+}
+
+/** 删除供应商 */
+function deleteSupplier(id) {
+  const idx = suppliers.findIndex(s => s.id === id);
+  if (idx === -1) throw new Error(`供应商 "${id}" 不存在`);
+  const deleted = suppliers.splice(idx, 1)[0];
+  saveSuppliers();
+  return deleted;
+}
+
+/** 切换供应商启用状态 */
+function toggleSupplier(id) {
+  const supplier = getSupplier(id);
+  if (!supplier) throw new Error(`供应商 "${id}" 不存在`);
+  supplier.enabled = !supplier.enabled;
+  saveSuppliers();
+  return supplier;
+}
+
+/** 保存供应商配置到文件 */
+function saveSuppliers() {
+  try {
+    const configPath = path.join(__dirname, 'config', 'config.json');
+    let configData = {};
+    try {
+      const raw = fs.readFileSync(configPath, 'utf-8');
+      configData = JSON.parse(raw);
+    } catch {
+      // 文件不存在或解析失败，使用当前配置
+    }
+    configData.suppliers = suppliers;
+    fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf-8');
+  } catch (e) {
+    log.error(`保存供应商配置失败: ${e.message}`);
+  }
+}
+
+/** 获取活动的供应商（第一个启用的） */
+function getActiveSupplier() {
+  const enabled = getEnabledSuppliers();
+  return enabled.length > 0 ? enabled[0] : null;
+}
 
 // ─── 按日分组的日志系统 ─────────────────────────────────────────────
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -335,7 +431,13 @@ function convertRequest(reqBody) {
   if (reqBody.presence_penalty !== undefined) result.presence_penalty = reqBody.presence_penalty;
   if (reqBody.frequency_penalty !== undefined) result.frequency_penalty = reqBody.frequency_penalty;
 
+  // 默认 max_tokens 防止模型用尽 token 只输出推理不输出文字
+  if (result.max_tokens === undefined) result.max_tokens = 16384;
+
   // 推理参数 - 不传 reasoning_effort 给后端，让后端自行决定
+
+  // 启用模型 thinking 模式
+  result.chat_template_kwargs = { enable_thinking: true };
 
   return result;
 }
@@ -815,7 +917,13 @@ const server = http.createServer((clientReq, clientRes) => {
         return;
       }
 
-      log.info(`  模型: ${reqBody.model}, 消息数: ${reqBody.input?.length || 0}, 工具数: ${reqBody.tools?.length || 0}`);
+      // 尝试从请求头或查询参数获取供应商 ID
+      const supplierHeader = clientReq.headers['x-supplier-id'];
+      const urlParams = new URL(clientReq.url, 'http://localhost');
+      const supplierParam = urlParams.searchParams.get('supplier');
+      const supplierId = supplierHeader || supplierParam;
+
+      log.info(`  模型: ${reqBody.model}, 消息数: ${reqBody.input?.length || 0}, 工具数: ${reqBody.tools?.length || 0}, 供应商: ${supplierId || '默认'}`);
       if (reqBody.input) {
         for (const item of reqBody.input) {
           if (item.type) {
@@ -854,9 +962,25 @@ const server = http.createServer((clientReq, clientRes) => {
       }
 
       // 发送到后端
-      function sendRequest(msgs) {
+      function sendRequest(msgs, supplierId = null) {
         chatReq.messages = msgs;
-        const backendUrl = new URL('/v1/chat/completions', CFG.backend_url);
+
+        // 确定使用哪个供应商
+        let backendUrl, backendApiKey;
+        const supplier = supplierId ? getSupplier(supplierId) : getActiveSupplier();
+        if (!supplier) {
+          clientRes.writeHead(503, { 'Content-Type': 'application/json' });
+          clientRes.end(JSON.stringify({ error: { message: '没有可用的供应商，请先添加并启用一个供应商' } }));
+          return;
+        }
+        if (supplierId && !supplier.enabled) {
+          clientRes.writeHead(400, { 'Content-Type': 'application/json' });
+          clientRes.end(JSON.stringify({ error: { message: `供应商 "${supplierId}" 已禁用` } }));
+          return;
+        }
+        backendUrl = new URL('/v1/chat/completions', supplier.backend_url);
+        backendApiKey = supplier.backend_api_key;
+
         const postData = JSON.stringify(chatReq);
         log.info(`  → 发送到后端: ${backendUrl.href}, 数据长度: ${postData.length}, 消息数: ${msgs.length}`);
 
@@ -865,8 +989,8 @@ const server = http.createServer((clientReq, clientRes) => {
             'Content-Length': Buffer.byteLength(postData),
             'Connection': 'close', // 禁用 keep-alive，避免后端 HPE 解析错误
           };
-          if (CFG.backend_api_key) {
-            headers['Authorization'] = `Bearer ${CFG.backend_api_key}`;
+          if (backendApiKey) {
+            headers['Authorization'] = `Bearer ${backendApiKey}`;
           }
           const options = {
             hostname: backendUrl.hostname,
@@ -958,7 +1082,7 @@ const server = http.createServer((clientReq, clientRes) => {
       }
 
       // 首次发送（完整上下文）
-      sendRequest(chatReq.messages);
+      sendRequest(chatReq.messages, supplierId);
     });
     return;
   }
@@ -968,14 +1092,36 @@ const server = http.createServer((clientReq, clientRes) => {
     let body = '';
     clientReq.on('data', chunk => { body += chunk; });
     clientReq.on('end', () => {
-      const backendUrl = new URL('/v1/chat/completions', CFG.backend_url);
+      // 尝试从请求头或查询参数获取供应商 ID
+      const supplierHeader = clientReq.headers['x-supplier-id'];
+      const urlParams = new URL(clientReq.url, 'http://localhost');
+      const supplierParam = urlParams.searchParams.get('supplier');
+
+      // 确定使用哪个供应商
+      let backendUrl, backendApiKey;
+      const supplierId = supplierHeader || supplierParam;
+      const supplier = supplierId ? getSupplier(supplierId) : getActiveSupplier();
+
+      if (!supplier) {
+        clientRes.writeHead(503, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ error: { message: '没有可用的供应商，请先添加并启用一个供应商' } }));
+        return;
+      }
+      if (supplierId && !supplier.enabled) {
+        clientRes.writeHead(400, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ error: { message: `供应商 "${supplierId}" 已禁用` } }));
+        return;
+      }
+      backendUrl = new URL('/v1/chat/completions', supplier.backend_url);
+      backendApiKey = supplier.backend_api_key;
+
       const headers = {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
         'Connection': 'close',
       };
-      if (CFG.backend_api_key) {
-        headers['Authorization'] = `Bearer ${CFG.backend_api_key}`;
+      if (backendApiKey) {
+        headers['Authorization'] = `Bearer ${backendApiKey}`;
       }
       const options = {
         hostname: backendUrl.hostname,
@@ -1016,13 +1162,113 @@ const server = http.createServer((clientReq, clientRes) => {
     return;
   }
 
+  // ── /v1/suppliers — 供应商管理 ──
+  if (clientReq.url === '/v1/suppliers' || clientReq.url.startsWith('/v1/suppliers/')) {
+    // GET /v1/suppliers - 获取所有供应商
+    if (clientReq.method === 'GET' && clientReq.url === '/v1/suppliers') {
+      clientRes.writeHead(200, { 'Content-Type': 'application/json' });
+      clientRes.end(JSON.stringify({ suppliers: getSuppliers() }));
+      return;
+    }
+
+    // GET /v1/suppliers/:id - 获取单个供应商
+    const idMatch = clientReq.url.match(/^\/v1\/suppliers\/([^/]+)$/);
+    if (clientReq.method === 'GET' && idMatch) {
+      const supplier = getSupplier(idMatch[1]);
+      if (!supplier) {
+        clientRes.writeHead(404, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ error: { message: `供应商 "${idMatch[1]}" 不存在` } }));
+        return;
+      }
+      clientRes.writeHead(200, { 'Content-Type': 'application/json' });
+      clientRes.end(JSON.stringify({ supplier }));
+      return;
+    }
+
+    // POST /v1/suppliers - 添加供应商
+    if (clientReq.method === 'POST' && clientReq.url === '/v1/suppliers') {
+      let body = '';
+      clientReq.on('data', chunk => { body += chunk; });
+      clientReq.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const supplier = addSupplier(data);
+          log.info(`  添加供应商: ${supplier.id} (${supplier.name})`);
+          clientRes.writeHead(201, { 'Content-Type': 'application/json' });
+          clientRes.end(JSON.stringify({ supplier }));
+        } catch (e) {
+          clientRes.writeHead(400, { 'Content-Type': 'application/json' });
+          clientRes.end(JSON.stringify({ error: { message: e.message } }));
+        }
+      });
+      return;
+    }
+
+    // PUT /v1/suppliers/:id - 更新供应商
+    if (clientReq.method === 'PUT' && idMatch) {
+      let body = '';
+      clientReq.on('data', chunk => { body += chunk; });
+      clientReq.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const supplier = updateSupplier(idMatch[1], data);
+          log.info(`  更新供应商: ${supplier.id} (${supplier.name})`);
+          clientRes.writeHead(200, { 'Content-Type': 'application/json' });
+          clientRes.end(JSON.stringify({ supplier }));
+        } catch (e) {
+          clientRes.writeHead(400, { 'Content-Type': 'application/json' });
+          clientRes.end(JSON.stringify({ error: { message: e.message } }));
+        }
+      });
+      return;
+    }
+
+    // DELETE /v1/suppliers/:id - 删除供应商
+    if (clientReq.method === 'DELETE' && idMatch) {
+      try {
+        const deleted = deleteSupplier(idMatch[1]);
+        log.info(`  删除供应商: ${deleted.id} (${deleted.name})`);
+        clientRes.writeHead(200, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ deleted }));
+      } catch (e) {
+        clientRes.writeHead(400, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ error: { message: e.message } }));
+      }
+      return;
+    }
+
+    // POST /v1/suppliers/:id/toggle - 切换供应商启用状态
+    const toggleMatch = clientReq.url.match(/^\/v1\/suppliers\/([^/]+)\/toggle$/);
+    if (clientReq.method === 'POST' && toggleMatch) {
+      try {
+        const supplier = toggleSupplier(toggleMatch[1]);
+        log.info(`  切换供应商状态: ${supplier.id} → ${supplier.enabled ? '启用' : '禁用'}`);
+        clientRes.writeHead(200, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ supplier }));
+      } catch (e) {
+        clientRes.writeHead(400, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({ error: { message: e.message } }));
+      }
+      return;
+    }
+
+    // 405 Method Not Allowed
+    clientRes.writeHead(405, { 'Content-Type': 'application/json' });
+    clientRes.end(JSON.stringify({ error: { message: 'Method not allowed' } }));
+    return;
+  }
+
   // ── 健康检查 ──
   if (clientReq.url === '/' || clientReq.url === '/health') {
+    const active = getActiveSupplier();
     clientRes.writeHead(200, { 'Content-Type': 'application/json' });
     clientRes.end(JSON.stringify({
       status: 'ok',
       proxy: 'codex-responses-proxy',
-      backend: CFG.backend_url,
+      active_supplier: active ? active.id : null,
+      active_backend: active ? active.backend_url : null,
+      enabled_count: getEnabledSuppliers().length,
+      total_count: suppliers.length,
       port: CFG.port,
       log_dir: LOG_DIR
     }));
@@ -1075,18 +1321,27 @@ function startServer() {
   });
 
   server.listen(CFG.port, CFG.host, () => {
+    const enabledCount = getEnabledSuppliers().length;
+    const totalCount = suppliers.length;
+    const active = getActiveSupplier();
+    const activeName = active ? `${active.name} (${active.id})` : '无';
+    const activeUrl = active ? active.backend_url : '-';
     console.log('');
     console.log('╔══════════════════════════════════════════════════════════╗');
     console.log('║   Codex Responses API → Chat Completions 转接代理       ║');
     console.log('╠══════════════════════════════════════════════════════════╣');
     console.log(`║   监听:    http://${CFG.host}:${CFG.port}                      ║`);
-    console.log(`║   后端:    ${CFG.backend_url.padEnd(44)}║`);
+    console.log(`║   活动:    ${activeName.padEnd(44)}║`);
+    console.log(`║   后端:    ${activeUrl.padEnd(44)}║`);
     console.log(`║   日志:    ${LOG_DIR.padEnd(47)}║`);
+    console.log(`║   供应商:  ${enabledCount}/${totalCount} 个已启用`.padEnd(55) + '║');
     console.log('║                                                          ║');
     console.log('║   路由:                                                  ║');
     console.log('║     POST /v1/responses        → 转换后转发              ║');
     console.log('║     POST /v1/chat/completions → 直接转发                ║');
     console.log('║     GET  /v1/models           → 返回模型列表            ║');
+    console.log('║     GET  /v1/suppliers        → 供应商管理              ║');
+    console.log('║     POST /v1/suppliers/:id/toggle → 切换供应商状态      ║');
     console.log('║     GET  /health              → 健康检查                ║');
     console.log('╚══════════════════════════════════════════════════════════╝');
     console.log('');

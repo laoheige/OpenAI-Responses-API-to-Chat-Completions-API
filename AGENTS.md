@@ -23,10 +23,9 @@ No tests, no build step, no lint. Just `node proxy.js`.
 ## Config
 
 `config/config.json` — all settings with defaults:
-- `backend_url`: Your Chat Completions endpoint
-- `backend_api_key`: Added as `Authorization: Bearer` header
 - `model_map`: Maps Codex model names to backend model names
 - `models`: Returned by `/v1/models` endpoint
+- `suppliers`: Array of backend suppliers (id, name, backend_url, backend_api_key, enabled, priority)
 
 ## Codex setup (~/.codex/config.toml)
 
@@ -45,6 +44,9 @@ Requires `OPENAI_API_KEY` env var (any value works).
 | `/v1/responses` | POST | Convert Responses API → Chat Completions → SSE |
 | `/v1/chat/completions` | POST | Direct passthrough |
 | `/v1/models` | GET | Return configured models |
+| `/v1/suppliers` | GET/POST | List or add suppliers |
+| `/v1/suppliers/:id` | GET/PUT/DELETE | Manage supplier |
+| `/v1/suppliers/:id/toggle` | POST | Toggle supplier enabled/disabled |
 | `/health` | GET | Health check |
 
 ## Logs
