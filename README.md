@@ -56,19 +56,21 @@ cp config/config.example.json config/config.jsoncp配置/ config.example。json�
 
 编辑 `~/.codex/config.toml`：
 
-```toml   ’”toml   ’”toml ’ &rdquo toml“ ” “汤姆” “汤姆”
-openai_base_url = "http://127.0.0.1:57321/v1"Openai_base_url = "http://127.0.0.1:57321/v1"；openai_base_url = "http://127.0.0.1:57321/v1"Openai_base_url = "http://127.0.0.1:57321/v1"；openai_base_url = "http://127.0.0.1:57321/v1"Openai_base_url = "http://127.0.0.1:57321/v1";openai_base_url = "http://127.0.0.1:57321/v1"Openai_base_url = "http://127.0.0.1:57321/v1"；
-model_provider = "openai_http"model_provider =“openai_https”；model_provider =“openai_https&rdquo”；
+```
+openai_base_url = "http://127.0.0.1:57321/v1"
+model_provider = "openai_http
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
 
-[model_providers.openai_http](model_providers.openai_http)
-name = "openai http only"name = "openai http only"name = "openai http only"name = "openai http only"
-wire_api = "responses"   wire_api = "responses"wire_api = "responses"   wire_api = "responses"
-supports_websockets = falseSupports_websockets = falsesupports_websockets = falsessupports_websockets = false
-requires_openai_auth = falseRequires_openai_auth = false
-model = "gpt-5.4-mini"   model = “ gpt-5.4- minio ”模型= "gpt-5.4-迷你"
+[model_providers.openai_http]
+name = "openai http only"
+wire_api = "responses" 
+supports_websockets = false
+requires_openai_auth = false
+model = "gpt-5.4-mini" 
 
-approval_policy = "never"Approval_policy = "never"；
-sandbox_mode = "danger-full-access"Sandbox_mode = "；危险-完整访问"；
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
 ```
 
 设置环境变量：
