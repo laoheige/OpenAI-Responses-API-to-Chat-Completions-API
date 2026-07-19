@@ -57,30 +57,18 @@ cp config/config.example.json config/config.jsoncp配置/ config.example。json�
 编辑 `~/.codex/config.toml`：
 
 ```
-openai_base_url = "http://127.0.0.1:57321/v1"
-model_provider = "openai_http
+model = "gpt-5.4-mini"
+model_provider = "local-proxy"
+model_reasoning_effort = "low"
+
+[model_providers.local-proxy]
+name = "local proxy"
+base_url = "http://127.0.0.1:57321/v1"
+experimental_bearer_token = "sk-any-value"
+wire_api = "responses"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 
-[model_providers.openai_http]
-name = "openai http only"
-wire_api = "responses" 
-supports_websockets = false
-requires_openai_auth = false
-model = "gpt-5.4-mini" 
-
-approval_policy = "never"
-sandbox_mode = "danger-full-access"
-```
-
-设置环境变量：
-
-```bash   ”“bash
-# Windows   #窗口
-setx OPENAI_API_KEY "sk-any-value"
-
-# Linux/macOS
-export OPENAI_API_KEY="sk-any-value"
 ```
 
 ### 4. 启动代理
