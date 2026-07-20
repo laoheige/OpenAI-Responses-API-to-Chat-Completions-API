@@ -53,17 +53,18 @@ cp config/config.example.json config/config.json
 编辑 `~/.codex/config.toml`：
 
 ```
+model_provider = "openai_http"
 model = "gpt-5.4-mini"
-model_provider = "local-proxy"
-model_reasoning_effort = "low"
-
-[model_providers.local-proxy]
-name = "local proxy"
-base_url = "http://127.0.0.1:57321/v1"
-experimental_bearer_token = "sk-any-value"
-wire_api = "responses"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
+
+[model_providers.openai_http]
+name = "openai http only"
+wire_api = "responses"
+supports_websockets = false
+requires_openai_auth = false
+base_url = "http://127.0.0.1:57321/v1"
+experimental_bearer_token = "not-needed"
 
 ```
 
